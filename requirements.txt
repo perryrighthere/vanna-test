@@ -1,0 +1,6 @@
+vanna
+openai
+httpx
+pandas
+qdrant-client
+PyMySQL
