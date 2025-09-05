@@ -513,9 +513,29 @@ def demonstrate_employee_data_training(vn):
     );
     """
     
+    # Marketing knowledge table DDL
+    marketing_knowledge_ddl = """
+    CREATE TABLE marketing_knowledge (
+        id VARCHAR(50) NULL,
+        primary_category VARCHAR(50) NOT NULL,
+        secondary_category VARCHAR(50) NULL,
+        main_name VARCHAR(100) NULL,
+        question VARCHAR(65533) NOT NULL,
+        answer VARCHAR(65533) NOT NULL,
+        A VARCHAR(65533) NULL,
+        B VARCHAR(65533) NULL,
+        C VARCHAR(65533) NULL,
+        D VARCHAR(65533) NULL,
+        answer_choose VARCHAR(5) NULL
+    );
+    """
+    
     try:
-        ddl_id = vn.train(ddl=bi_dataset_ddl)
-        print(f"✅ Successfully added DDL training data: {ddl_id}")
+        bi_ddl_id = vn.train(ddl=bi_dataset_ddl)
+        print(f"✅ Successfully added bi_dataset DDL training data: {bi_ddl_id}")
+        
+        mk_ddl_id = vn.train(ddl=marketing_knowledge_ddl)
+        print(f"✅ Successfully added marketing_knowledge DDL training data: {mk_ddl_id}")
     except Exception as e:
         print(f"❌ Error adding DDL: {e}")
     
@@ -561,12 +581,54 @@ def demonstrate_employee_data_training(vn):
         """
     ]
     
+    # Marketing knowledge table documentation
+    marketing_knowledge_documentation = [
+        """
+        营销知识数据集数据字典：
+        - id: 知识条目唯一标识符（如：Brand_case20, Brand_case21）
+        - primary_category: 主要类别（如：品牌知识）
+        - secondary_category: 次要类别（如：企业介绍、品牌历史、品牌介绍）
+        - main_name: 品牌名称（如：LEASY, NATROL, SONAVOX, TOMFORD汤姆福特, AEKYUNG爱敬化工）
+        - question: 问题内容（中文描述的业务问题）
+        - answer: 正确答案内容
+        - A, B, C, D: 四个选择题选项
+        - answer_choose: 正确答案选项（A, B, C, D中的一个）
+        """,
+        """
+        营销知识业务规则：
+        - 每个知识条目都有唯一的id标识
+        - primary_category主要为"品牌知识"
+        - secondary_category包括：企业介绍、品牌历史、品牌介绍、企业名称等
+        - question字段包含具体的业务问题
+        - answer字段包含标准答案
+        - A、B、C、D四个字段为选择题的四个选项
+        - answer_choose指向正确的选项（A/B/C/D）
+        - 品牌名称包含中文和英文混合格式
+        - 涉及成立时间、地址、创始人等企业基本信息
+        """,
+        """
+        数据关联说明：
+        - marketing_knowledge表和bi_dataset表没有直接的外键关联
+        - 但可以通过业务逻辑进行关联查询
+        - 例如：可以查询某公司员工同时了解该公司品牌知识的情况
+        - 支持跨表的统计分析和知识管理应用
+        - 数据来源于企业品牌知识管理系统
+        """
+    ]
+    
     for i, doc in enumerate(bi_dataset_documentation):
         try:
             doc_id = vn.train(documentation=doc.strip())
-            print(f"✅ Added documentation {i+1}: {doc_id}")
+            print(f"✅ Added bi_dataset documentation {i+1}: {doc_id}")
         except Exception as e:
-            print(f"❌ Error adding documentation {i+1}: {e}")
+            print(f"❌ Error adding bi_dataset documentation {i+1}: {e}")
+    
+    for i, doc in enumerate(marketing_knowledge_documentation):
+        try:
+            doc_id = vn.train(documentation=doc.strip())
+            print(f"✅ Added marketing_knowledge documentation {i+1}: {doc_id}")
+        except Exception as e:
+            print(f"❌ Error adding marketing_knowledge documentation {i+1}: {e}")
     
     print("\n3. TRAINING WITH QUESTION-SQL PAIRS")
     print("-" * 30)
@@ -632,13 +694,64 @@ def demonstrate_employee_data_training(vn):
         }
     ]
     
+    # Multi-table query examples between bi_dataset and marketing_knowledge
+    multi_table_examples = [
+        {
+            "question": "统计营销知识数据中有多少个不同的品牌，同时统计员工数据中有多少个不同的公司",
+            "sql": """SELECT 
+                        (SELECT COUNT(DISTINCT main_name) FROM marketing_knowledge WHERE main_name IS NOT NULL AND main_name != '') as '品牌数量',
+                        (SELECT COUNT(DISTINCT company_name) FROM bi_dataset WHERE company_name IS NOT NULL AND company_name != '') as '公司数量'"""
+        },
+        {
+            "question": "查询营销知识中的所有品牌名称和员工数据中的所有公司名称",
+            "sql": """SELECT DISTINCT main_name as '名称', '品牌' as '类型' FROM marketing_knowledge WHERE main_name IS NOT NULL AND main_name != ''
+                     UNION ALL
+                     SELECT DISTINCT company_name as '名称', '公司' as '类型' FROM bi_dataset WHERE company_name IS NOT NULL AND company_name != ''
+                     ORDER BY 类型, 名称"""
+        },
+        {
+            "question": "统计营销知识按主要类别分组的数量和员工按性别分组的数量",
+            "sql": """SELECT primary_category as '类别', COUNT(*) as '数量', '营销知识' as '数据源' FROM marketing_knowledge GROUP BY primary_category
+                     UNION ALL
+                     SELECT sex as '类别', COUNT(*) as '数量', '员工数据' as '数据源' FROM bi_dataset WHERE sex != '' AND sex IS NOT NULL GROUP BY sex
+                     ORDER BY 数据源, 数量 DESC"""
+        },
+        {
+            "question": "查询营销知识中关于企业介绍的品牌数量和员工中关键员工的数量",
+            "sql": """SELECT 
+                        (SELECT COUNT(DISTINCT main_name) FROM marketing_knowledge WHERE secondary_category = '企业介绍') as '企业介绍品牌数',
+                        (SELECT COUNT(*) FROM bi_dataset WHERE key_employee = '1') as '关键员工数量'"""
+        },
+        {
+            "question": "分别统计营销知识和员工数据的总记录数",
+            "sql": """SELECT 
+                        (SELECT COUNT(*) FROM marketing_knowledge) as '营销知识总数',
+                        (SELECT COUNT(*) FROM bi_dataset) as '员工总数'"""
+        },
+        {
+            "question": "查询营销知识中品牌历史类别的问题和员工数据中30岁以上员工的信息（分别查询）",
+            "sql": """SELECT 'marketing' as source, main_name as name, question as info FROM marketing_knowledge WHERE secondary_category = '品牌历史' LIMIT 5
+                     UNION ALL
+                     SELECT 'employee' as source, company_name as name, CONCAT(position_name, '-年龄:', age) as info FROM bi_dataset WHERE CAST(age AS UNSIGNED) > 30 LIMIT 5"""
+        }
+    ]
+    
     for i, example in enumerate(training_examples):
         try:
             q_id = vn.train(question=example["question"], sql=example["sql"])
-            print(f"✅ Added Q&A {i+1}: {q_id}")
+            print(f"✅ Added single-table Q&A {i+1}: {q_id}")
             print(f"   Question: {example['question'][:60]}...")
         except Exception as e:
-            print(f"❌ Error adding Q&A {i+1}: {e}")
+            print(f"❌ Error adding single-table Q&A {i+1}: {e}")
+    
+    # Add multi-table examples
+    for i, example in enumerate(multi_table_examples):
+        try:
+            q_id = vn.train(question=example["question"], sql=example["sql"])
+            print(f"✅ Added multi-table Q&A {i+1}: {q_id}")
+            print(f"   Question: {example['question'][:60]}...")
+        except Exception as e:
+            print(f"❌ Error adding multi-table Q&A {i+1}: {e}")
     
     print("\n4. TRAINING DATA MANAGEMENT")
     print("-" * 30)
@@ -734,15 +847,27 @@ def demonstrate_employee_data_training(vn):
     print("\n6. TESTING SQL GENERATION")
     print("-" * 30)
     
-    # 使用训练模型测试SQL生成
+    # 使用训练模型测试SQL生成（包括单表和多表查询）
     test_questions = [
+        # Single table queries
         "有多少在职员工？",
         "按部门显示关键员工", 
         "男女性别分布情况",
         "查找来自四川省的员工",
         "显示已婚员工信息",
         "核心岗位有多少人？",
-        "干部的平均年龄是多少？"
+        "干部的平均年龄是多少？",
+        
+        # Marketing knowledge single table queries
+        "营销知识库中有多少个品牌？",
+        "查询所有品牌历史类的知识",
+        "统计各个品牌的知识条目数量",
+        
+        # Multi-table queries
+        "统计营销知识和员工数据的总数量",
+        "查询营销知识中的品牌名称和员工数据中的公司名称",
+        "比较营销知识按类别分布和员工按性别分布",
+        "营销知识中有多少企业介绍，员工中有多少关键员工？"
     ]
     
     for question in test_questions:
@@ -817,15 +942,22 @@ def test_ask_functionality(vn):
     print("\n8. TESTING FULL ASK() FUNCTIONALITY")
     print("-" * 30)
     
-    # 适用于bi_dataset的中文测试问题
+    # 测试完整ask()功能（包括单表和多表查询）
     ask_questions = [
+        # Single table queries - bi_dataset
         "数据库中有多少员工？",
         "显示性别分布情况",
         "我们数据库中有哪些公司？",
         "查找所有关键员工",
         "显示来自重庆市的员工",
-        "各个民族各有多少人？",
-        "年龄最大的员工是谁？"
+        
+        # Single table queries - marketing_knowledge
+        "营销知识库中有哪些品牌？",
+        "查询企业介绍类的知识条目",
+        
+        # Multi-table queries
+        "统计营销知识和员工数据的记录总数",
+        "比较营销知识的品牌数量和员工数据的公司数量"
     ]
     
     for question in ask_questions:
